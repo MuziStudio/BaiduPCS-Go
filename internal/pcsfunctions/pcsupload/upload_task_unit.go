@@ -39,6 +39,7 @@ type (
 		Policy            string // 上传重名文件策略
 
 		UploadStatistic *UploadStatistic
+		ProgressHook    func(uploaded, total, speed int64) // optional; called every ~3s
 
 		taskInfo *taskframework.TaskInfo
 		panDir   string
@@ -329,6 +330,9 @@ func (utu *UploadTaskUnit) upload() (result *taskframework.TaskUnitRunResult) {
 			converter.ConvertFileSize(status.SpeedsPerSecond(), 2),
 			status.TimeElapsed(),
 		)
+		if utu.ProgressHook != nil {
+			utu.ProgressHook(status.Uploaded(), status.TotalSize(), status.SpeedsPerSecond())
+		}
 	})
 
 	// result

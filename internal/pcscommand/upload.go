@@ -33,6 +33,7 @@ type (
 		NoSplitFile     bool   // 禁用分片上传
 		Policy          string // 同名文件处理策略
 		NoFilenameCheck bool   // 禁用文件名合法性检查
+		ProgressHook    func(uploaded, total, speed int64)
 	}
 )
 
@@ -162,6 +163,7 @@ func RunUpload(localPaths []string, savePath string, opt *UploadOptions) error {
 				NoSplitFile:       opt.NoSplitFile,
 				UploadStatistic:   statistic,
 				Policy:            opt.Policy,
+				ProgressHook:      opt.ProgressHook,
 			}, opt.MaxRetry)
 			if LoadCount >= opt.Load {
 				LoadCount = opt.Load
