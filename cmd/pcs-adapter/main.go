@@ -32,15 +32,34 @@ import (
 	"github.com/qjfoidnh/BaiduPCS-Go/internal/pcsconfig"
 )
 
-var listenAddr = flag.String("addr", ":7070", "HTTP listen address")
+var configPath = flag.String("config", "", "path to panpipe JSON config")
+
+type adapterConfig struct {
+	AdapterAddr string `json:"adapter_addr"`
+	BaiduBDUSS  string `json:"baidu_bduss"`
+	BaiduSTOKEN string `json:"baidu_stoken"`
+}
 
 func main() {
 	flag.Parse()
+	if *configPath == "" {
+		log.Fatal("config file is required")
+	}
+	cfg, err := loadAdapterConfig(*configPath)
+	if err != nil {
+		log.Fatal(err)
+	}
 	pcsconfig.Config.Init()
+	if cfg.BaiduBDUSS == "" || cfg.BaiduSTOKEN == "" {
+		log.Fatal("baidu_bduss and baidu_stoken are required")
+	}
+	if _, err := pcsconfig.Config.SetupUserByBDUSS(cfg.BaiduBDUSS, "", cfg.BaiduSTOKEN, ""); err != nil {
+		log.Fatalf("baidu login: %v", err)
+	}
 
 	srv := newServer()
 
-	hs := &http.Server{Addr: *listenAddr, Handler: srv.mux}
+	hs := &http.Server{Addr: cfg.AdapterAddr, Handler: srv.mux}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
@@ -51,10 +70,27 @@ func main() {
 		hs.Shutdown(ctx)
 	}()
 
-	log.Printf("pcs-adapter listening on %s", *listenAddr)
+	log.Printf("pcs-adapter listening on %s", cfg.AdapterAddr)
 	if err := hs.ListenAndServe(); err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+}
+
+type panpipeConfig struct {
+	BaiduBDUSS  string `json:"baidu_bduss"`
+	BaiduSTOKEN string `json:"baidu_stoken"`
+}
+
+func loadAdapterConfig(path string) (adapterConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return adapterConfig{}, fmt.Errorf("read config %q: %w", path, err)
+	}
+	var cfg adapterConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return adapterConfig{}, fmt.Errorf("parse config %q: %w", path, err)
+	}
+	return cfg, nil
 }
 
 // progressEvent is sent as an SSE data payload.
